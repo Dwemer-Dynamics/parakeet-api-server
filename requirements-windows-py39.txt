@@ -1,0 +1,35 @@
+# Parakeet STT API Server - Windows Python 3.9 Compatible Dependencies
+# These versions have pre-built wheels for Windows Python 3.9
+
+# Install numpy and scipy first with compatible versions
+numpy==1.23.5
+scipy==1.11.4
+
+# Core dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Audio processing
+soundfile==0.12.1
+numba==0.58.1
+librosa==0.10.1
+
+# Inference engines
+# ONNX backend (for INT8 and FP16 quantized models)
+sherpa-onnx==1.10.30
+
+# NeMo backend (for FP32 native models)
+# NOTE: For GPU support, install PyTorch with CUDA first:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+# Then install other dependencies:
+nemo_toolkit[asr]
+torch>=2.0.0  # This will install CPU version if not already installed with CUDA
+pytorch-lightning>=2.0.0
+
+# Optional: CUDA Python for faster decoding with CUDA graphs (GPU only)
+cuda-python>=12.3
+
+# Utilities
+tqdm==4.66.1
+pydantic==2.5.2

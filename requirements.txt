@@ -1,0 +1,38 @@
+# Parakeet STT API Server Dependencies
+
+# Core dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# Audio processing (pinned versions for Python 3.9 Windows compatibility)
+numpy>=1.21.0,<2.0.0
+scipy>=1.7.0,<1.12.0
+soundfile>=0.12.1
+librosa>=0.9.2,<0.11.0
+
+# Inference engines
+# ONNX backend (for INT8 quantized models)
+# NOTE: Default sherpa-onnx from PyPI is CPU-only.
+# For GPU support with CUDA 12.x, install the GPU-enabled version:
+#   pip install sherpa-onnx==1.12.13+cuda12.cudnn9 -f https://k2-fsa.github.io/sherpa/onnx/cuda.html
+# For CUDA 11.8:
+#   pip install sherpa-onnx==1.12.13+cuda11.cudnn8 -f https://k2-fsa.github.io/sherpa/onnx/cuda.html
+# See: https://k2-fsa.github.io/sherpa/onnx/python/install.html
+sherpa-onnx>=1.10.0  # CPU-only version (install scripts will use GPU version if needed)
+
+# NeMo backend (for FP32 native models)
+# NOTE: For GPU support, install PyTorch with CUDA first:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+# Then install other dependencies:
+nemo_toolkit[asr]
+torch>=2.0.0  # This will install CPU version if not already installed with CUDA
+pytorch-lightning>=2.0.0
+
+# GPU dependencies (optional, only needed for GPU acceleration)
+cuda-python>=12.3; platform_system != "Darwin"  # CUDA Python for faster NeMo decoding with CUDA graphs
+nvidia-cudnn-cu12>=9.0.0; platform_system != "Darwin"  # CUDNN 9 required for sherpa-onnx GPU support
+
+# Utilities
+tqdm>=4.66.0
+pydantic>=2.0.0

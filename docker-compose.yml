@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  parakeet-stt:
+    build: .
+    image: parakeet-stt-api:latest
+    container_name: parakeet-stt-api
+    ports:
+      - "8022:8022"
+    volumes:
+      - ./models:/app/models  # Persist downloaded models
+    environment:
+      - API_HOST=0.0.0.0
+      - API_PORT=8022
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    command: ["--host", "0.0.0.0", "--port", "8022"]
+    # For INT8 models, use:
+    # command: ["--host", "0.0.0.0", "--port", "8022", "--int8"]
