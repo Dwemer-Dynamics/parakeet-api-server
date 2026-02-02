@@ -25,7 +25,7 @@ sherpa-onnx>=1.10.0  # CPU-only version (install scripts will use GPU version if
 # NOTE: For GPU support, install PyTorch with CUDA first:
 #   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 # Then install other dependencies:
-nemo_toolkit[asr]
+nemo_toolkit[asr]==2.5.0
 torch>=2.0.0  # This will install CPU version if not already installed with CUDA
 pytorch-lightning>=2.0.0
 
