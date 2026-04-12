@@ -29,6 +29,14 @@ cd parakeet-api
 install.bat
 ```
 
+If a GPU is detected, the installer will ask two simple questions:
+- whether you want GPU acceleration
+- which PyTorch GPU build to use: `CUDA 13.0`, `CUDA 12.8`, or `CUDA 12.6`
+
+On Linux/macOS, `install.sh` will also detect the NVIDIA driver CUDA version, and
+the local CUDA toolkit version if `nvcc` is installed, then recommend the best
+PyTorch build automatically. Press Enter to accept the recommended option.
+
 ### Starting the Server
 
 ```bash
@@ -125,7 +133,8 @@ python server.py --precision fp32 --cpu --threads 0
 
 ## GPU Setup
 
-The install script auto-detects your GPU. To check GPU support manually:
+The install script auto-detects your GPU and asks which PyTorch GPU build to use.
+To check GPU support manually:
 
 ```bash
 python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
@@ -134,15 +143,22 @@ python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
 If GPU is not detected, reinstall PyTorch with CUDA:
 
 ```bash
-# For CUDA 12.6 (RTX 3000/4000 series and newer)
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+# CUDA 13.0
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
 
-# For CUDA 11.8 (older GPUs)
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+# CUDA 12.8
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+# CUDA 12.6
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 
 # CPU-only
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 ```
+
+All three packages must come from the same index URL. Mixing `torch`, `torchvision`,
+and `torchaudio` from different CUDA wheel channels can break startup with errors
+such as `operator torchvision::nms does not exist`.
 
 ## Model Information
 

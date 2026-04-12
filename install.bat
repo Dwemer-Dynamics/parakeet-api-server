@@ -50,11 +50,15 @@ for /f "tokens=*" %%g in ('nvidia-smi --query-gpu^=name --format^=csv^,noheader 
 
 echo.
 
+set GPU_TORCH_INDEX_URL=
+set GPU_TORCH_LABEL=
+if defined PYTORCH_INDEX_URL set GPU_TORCH_INDEX_URL=%PYTORCH_INDEX_URL%
+
 REM Prompt user for GPU support
 set INSTALL_GPU=0
 if !GPU_DETECTED!==1 (
-    echo Do you want to install PyTorch with CUDA support for GPU acceleration?
-    echo This is recommended for 5-10x faster inference.
+    echo Do you want GPU acceleration for FP32 transcription?
+    echo This is recommended for much faster inference.
     set /p GPU_CHOICE="Install with GPU support? [Y/n]: "
 
     if /i "!GPU_CHOICE!"=="" set INSTALL_GPU=1
@@ -62,7 +66,13 @@ if !GPU_DETECTED!==1 (
     if /i "!GPU_CHOICE!"=="yes" set INSTALL_GPU=1
 
     if !INSTALL_GPU!==1 (
-        echo [i] Installing GPU ^(CUDA 12.6^) version
+        if defined PYTORCH_INDEX_URL (
+            call :describe_torch_index "!GPU_TORCH_INDEX_URL!"
+            echo [i] Using PyTorch GPU build from PYTORCH_INDEX_URL: !GPU_TORCH_LABEL!
+        ) else (
+            call :prompt_torch_index
+        )
+        echo [i] Installing GPU ^(!GPU_TORCH_LABEL!^) version
     ) else (
         echo [i] Installing CPU-only version
     )
@@ -101,11 +111,12 @@ echo.
 
 REM Install PyTorch with or without CUDA
 if !INSTALL_GPU!==1 (
-    echo Installing PyTorch with CUDA 12.6 support...
-    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+    echo Installing PyTorch with !GPU_TORCH_LABEL! support...
+    echo     !GPU_TORCH_INDEX_URL!
+    pip install --upgrade --no-cache-dir torch torchvision torchaudio --index-url !GPU_TORCH_INDEX_URL!
 ) else (
     echo Installing PyTorch ^(CPU-only^)...
-    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+    pip install --upgrade --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 )
 
 echo.
@@ -166,3 +177,51 @@ echo   python server.py
 echo.
 
 pause
+exit /b 0
+
+:prompt_torch_index
+echo Choose the PyTorch GPU build:
+echo   1^) CUDA 13.0 - best default if your NVIDIA driver is current
+echo   2^) CUDA 12.8 - use if CUDA 13.0 gives you trouble
+echo   3^) CUDA 12.6 - older fallback
+set /p GPU_BUILD_CHOICE="Pick 1, 2, or 3 [1]: "
+
+if "!GPU_BUILD_CHOICE!"=="" set GPU_BUILD_CHOICE=1
+if "!GPU_BUILD_CHOICE!"=="1" (
+    call :set_torch_index https://download.pytorch.org/whl/cu130 "CUDA 13.0"
+    goto :eof
+)
+if "!GPU_BUILD_CHOICE!"=="2" (
+    call :set_torch_index https://download.pytorch.org/whl/cu128 "CUDA 12.8"
+    goto :eof
+)
+if "!GPU_BUILD_CHOICE!"=="3" (
+    call :set_torch_index https://download.pytorch.org/whl/cu126 "CUDA 12.6"
+    goto :eof
+)
+
+echo [i] Invalid choice. Using CUDA 13.0.
+call :set_torch_index https://download.pytorch.org/whl/cu130 "CUDA 13.0"
+goto :eof
+
+:set_torch_index
+set GPU_TORCH_INDEX_URL=%~1
+set GPU_TORCH_LABEL=%~2
+goto :eof
+
+:describe_torch_index
+if /i "%~1"=="https://download.pytorch.org/whl/cu130" (
+    call :set_torch_index %~1 "CUDA 13.0"
+    goto :eof
+)
+if /i "%~1"=="https://download.pytorch.org/whl/cu128" (
+    call :set_torch_index %~1 "CUDA 12.8"
+    goto :eof
+)
+if /i "%~1"=="https://download.pytorch.org/whl/cu126" (
+    call :set_torch_index %~1 "CUDA 12.6"
+    goto :eof
+)
+
+call :set_torch_index %~1 "%~1"
+goto :eof
