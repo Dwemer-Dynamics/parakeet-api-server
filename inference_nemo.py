@@ -75,13 +75,17 @@ class NeMoBackend(STTBackend):
             print(f"    - Inter-op threads: {torch.get_num_interop_threads()}")
 
         print(f"Loading NeMo model: {config.NEMO_MODEL_ID} ({precision})...")
+        print("  Restoring checkpoint on CPU before moving it to the inference device")
 
-        # Load model from HuggingFace - it may load to GPU by default
+        # Keep checkpoint restore independent from CUDA initialization. NeMo otherwise
+        # selects a GPU automatically when one is available.
         self.model = nemo_asr.models.ASRModel.from_pretrained(
-            model_name=config.NEMO_MODEL_ID
+            model_name=config.NEMO_MODEL_ID,
+            map_location=torch.device('cpu'),
         )
 
         # Move to appropriate device
+        print(f"  Checkpoint restored; moving model to {self.device}")
         self.model = self.model.to(self.device)
 
         # If forcing CPU, clear any CUDA memory that might have been allocated
