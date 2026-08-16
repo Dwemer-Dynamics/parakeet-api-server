@@ -1,7 +1,6 @@
 """
 Model downloader for Parakeet STT models
 """
-import os
 import sys
 import tarfile
 import tempfile
@@ -126,6 +125,24 @@ def download_onnx_models(precision: str) -> Path:
     return model_dir
 
 
+def download_nemo_model() -> Path:
+    """Populate the HuggingFace cache without instantiating the model."""
+    from nemo.collections.asr.models import ASRModel
+
+    print(f"\nCaching NeMo model: {config.NEMO_MODEL_ID}")
+    model_path = Path(
+        ASRModel.from_pretrained(
+            model_name=config.NEMO_MODEL_ID,
+            return_model_file=True,
+        )
+    )
+
+    if not model_path.is_file():
+        raise FileNotFoundError(f"NeMo reported a missing cached model: {model_path}")
+    print(f"✓ NeMo model cache ready: {model_path}")
+    return model_path
+
+
 def download_models(precision: str) -> Path:
     """
     Download Parakeet models
@@ -134,7 +151,7 @@ def download_models(precision: str) -> Path:
         precision: Precision level ('fp32', 'int8')
 
     Returns:
-        Path to model directory (only for ONNX models)
+        Path to the prepared model directory or checkpoint
     """
     # Validate precision
     if precision not in config.AVAILABLE_PRECISION:
@@ -143,14 +160,9 @@ def download_models(precision: str) -> Path:
             f"Available: {', '.join(config.AVAILABLE_PRECISION)}"
         )
 
-    # Only INT8 ONNX model needs to be downloaded
-    # FP32 uses NeMo and is auto-downloaded from HuggingFace
     if precision == 'int8':
         return download_onnx_models(precision)
-    else:
-        # FP32 uses NeMo, no pre-download needed
-        print(f"{precision.upper()} precision uses NeMo backend - model will be auto-downloaded from HuggingFace on first use")
-        return None
+    return download_nemo_model()
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@
 NeMo-based STT Backend
 Supports FP32 precision for Parakeet TDT 0.6B v3
 """
+import os
 import numpy as np
 import torch
 from pathlib import Path
@@ -53,7 +54,6 @@ class NeMoBackend(STTBackend):
 
         # Configure CPU threading for optimal performance
         if self.device.type == 'cpu':
-            import os
             # Auto-detect thread count if not specified
             # Following ONNX Runtime convention: use physical cores, not logical cores
             if num_threads == 0:
@@ -75,13 +75,22 @@ class NeMoBackend(STTBackend):
             print(f"    - Inter-op threads: {torch.get_num_interop_threads()}")
 
         print(f"Loading NeMo model: {config.NEMO_MODEL_ID} ({precision})...")
+        print("  Restoring checkpoint on CPU before moving it to the inference device")
 
-        # Load model from HuggingFace - it may load to GPU by default
-        self.model = nemo_asr.models.ASRModel.from_pretrained(
-            model_name=config.NEMO_MODEL_ID
-        )
+        prepared_model = os.getenv("PARAKEET_NEMO_MODEL_PATH")
+        if prepared_model:
+            self.model = nemo_asr.models.ASRModel.restore_from(
+                restore_path=prepared_model,
+                map_location=torch.device('cpu'),
+            )
+        else:
+            self.model = nemo_asr.models.ASRModel.from_pretrained(
+                model_name=config.NEMO_MODEL_ID,
+                map_location=torch.device('cpu'),
+            )
 
         # Move to appropriate device
+        print(f"  Checkpoint restored; moving model to {self.device}")
         self.model = self.model.to(self.device)
 
         # If forcing CPU, clear any CUDA memory that might have been allocated

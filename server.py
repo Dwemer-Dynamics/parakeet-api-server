@@ -4,6 +4,7 @@ FastAPI-based server with OpenAI-compatible endpoints
 """
 import argparse
 import io
+import os
 import sys
 import tempfile
 import time
@@ -260,7 +261,7 @@ def initialize_model(
     # Store model info globally
     model_info_global['precision'] = precision
 
-    # Check if ONNX models need to be downloaded (only INT8)
+    # Check whether the selected backend has a prepared model cache.
     model_dir = None
     if precision == 'int8':
         model_dir_name = config.ONNX_MODEL_DIRS.get(precision)
@@ -280,6 +281,8 @@ def initialize_model(
                     print(f"ERROR: Models not found at {model_dir}")
                     print("Run with --download flag to download models automatically")
                     sys.exit(1)
+    elif auto_download:
+        os.environ["PARAKEET_NEMO_MODEL_PATH"] = str(download_models(precision))
 
     # Initialize backend
     print(f"\nInitializing {config.MODEL_DESCRIPTION} ({precision.upper()})...")

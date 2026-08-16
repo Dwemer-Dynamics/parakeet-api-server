@@ -8,7 +8,7 @@ A high-performance Speech-to-Text API server using NVIDIA's Parakeet TDT 0.6B v3
 
 - **Flexible Precision**: FP32 (Best quality, GPU/CPU) or INT8 (Slightly worse quality, CPU-only)
 - **Easy Setup**: Clone and run with a single command
-- **Auto-Download**: Models download automatically on first run
+- **Prepared Models**: NeMo downloads the checkpoint before constructing the model
 - **OpenAI Compatible**: Drop-in replacement for OpenAI's Whisper API
 - **Multilingual**: Supports 25 European languages (auto-detected)
 
@@ -207,8 +207,29 @@ Tested on RTX 3060 and i5-11600K on a 2.4hr dataset:
 ### GPU Not Being Used
 
 1. Check NVIDIA drivers: `nvidia-smi`
-2. Verify PyTorch CUDA: `python -c "import torch; print(torch.cuda.is_available())"`
-3. Reinstall PyTorch with CUDA support (see GPU Setup above)
+2. Activate the virtual environment: `source venv/bin/activate`
+3. Verify PyTorch CUDA: `python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"`
+4. Reinstall PyTorch with CUDA support (see GPU Setup above)
+
+Use one PyTorch wheel channel per virtual environment. If an existing environment
+contains mixed CUDA package families, reinstall it cleanly instead of trying to
+remove individual CUDA libraries.
+
+### Server Never Becomes Healthy
+
+Supervised startup uses a bounded health deadline and retries once. GPU mode also
+checks a real CUDA tensor operation before loading NeMo; it does not silently
+switch a broken GPU installation to CPU.
+
+Inspect these files after a failure:
+
+```bash
+tail -n 200 log.txt
+tail -n 200 log.previous.txt
+```
+
+`log.txt` includes the PyTorch/CUDA versions and a failure snapshot with process,
+memory, GPU/driver, and available kernel out-of-memory or NVIDIA Xid evidence.
 
 ### Out of Memory
 
@@ -249,7 +270,7 @@ parakeet-api/
 ├── backend.py             # Backend abstraction layer
 ├── inference_nemo.py      # NeMo backend (FP32)
 ├── inference_onnx.py      # ONNX backend (INT8)
-├── model_downloader.py    # Model auto-download
+├── model_downloader.py    # Model cache preparation
 ├── benchmark.py           # WER & performance testing
 ├── config.py              # Configuration
 ├── requirements.txt       # Dependencies
