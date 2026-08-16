@@ -8,7 +8,7 @@ A high-performance Speech-to-Text API server using NVIDIA's Parakeet TDT 0.6B v3
 
 - **Flexible Precision**: FP32 (Best quality, GPU/CPU) or INT8 (Slightly worse quality, CPU-only)
 - **Easy Setup**: Clone and run with a single command
-- **Auto-Download**: Models download automatically on first run
+- **Prepared Models**: Installation and supervised startup validate the model cache before loading NeMo
 - **OpenAI Compatible**: Drop-in replacement for OpenAI's Whisper API
 - **Multilingual**: Supports 25 European languages (auto-detected)
 
@@ -207,8 +207,33 @@ Tested on RTX 3060 and i5-11600K on a 2.4hr dataset:
 ### GPU Not Being Used
 
 1. Check NVIDIA drivers: `nvidia-smi`
-2. Verify PyTorch CUDA: `python -c "import torch; print(torch.cuda.is_available())"`
-3. Reinstall PyTorch with CUDA support (see GPU Setup above)
+2. Activate the virtual environment: `source venv/bin/activate`
+3. Run the full compatibility probe: `python startup_state.py check-runtime --require-cuda`
+4. Reinstall PyTorch with CUDA support (see GPU Setup above)
+
+The compatibility probe records the NVIDIA driver, GPU compute capability,
+PyTorch and CUDA builds, cuDNN version, installed NVIDIA package families, and
+the result of a real CUDA tensor operation. If both CUDA 12 and CUDA 13 packages
+are reported, reinstall into a clean virtual environment with one PyTorch wheel
+channel instead of trying to repair the mixed environment in place.
+
+### Server Never Becomes Healthy
+
+Supervised startup uses separate deadlines for model preparation and NeMo model
+restore. It retries a failed restore once, but it does not silently switch a GPU
+installation to CPU.
+
+Inspect these files after a failure:
+
+```bash
+python startup_state.py show
+tail -n 200 log.txt
+tail -n 200 log.previous.txt
+```
+
+`startup_state.json` identifies the last completed startup phase. `log.txt`
+includes a failure snapshot with the process state, memory usage, GPU/driver
+details, and available kernel out-of-memory or NVIDIA Xid errors.
 
 ### Out of Memory
 
@@ -249,7 +274,8 @@ parakeet-api/
 ├── backend.py             # Backend abstraction layer
 ├── inference_nemo.py      # NeMo backend (FP32)
 ├── inference_onnx.py      # ONNX backend (INT8)
-├── model_downloader.py    # Model auto-download
+├── model_downloader.py    # Model cache preparation
+├── startup_state.py       # Startup phases and runtime diagnostics
 ├── benchmark.py           # WER & performance testing
 ├── config.py              # Configuration
 ├── requirements.txt       # Dependencies

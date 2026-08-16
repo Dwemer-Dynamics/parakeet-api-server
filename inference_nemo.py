@@ -11,6 +11,8 @@ import librosa
 
 from backend import STTBackend
 import config
+from model_downloader import get_cached_nemo_model_path
+from startup_state import update_startup_state
 
 
 class NeMoBackend(STTBackend):
@@ -76,16 +78,28 @@ class NeMoBackend(STTBackend):
 
         print(f"Loading NeMo model: {config.NEMO_MODEL_ID} ({precision})...")
         print("  Restoring checkpoint on CPU before moving it to the inference device")
+        update_startup_state(
+            "restoring_checkpoint_cpu",
+            "Restoring the cached NeMo checkpoint on CPU",
+            model=config.NEMO_MODEL_ID,
+            inference_device=str(self.device),
+        )
 
-        # Keep checkpoint restore independent from CUDA initialization. NeMo otherwise
-        # selects a GPU automatically when one is available.
-        self.model = nemo_asr.models.ASRModel.from_pretrained(
-            model_name=config.NEMO_MODEL_ID,
+        # Restore the exact file prepared before startup. This keeps checkpoint
+        # construction independent from both network access and CUDA initialization.
+        model_path = get_cached_nemo_model_path()
+        self.model = nemo_asr.models.ASRModel.restore_from(
+            restore_path=str(model_path),
             map_location=torch.device('cpu'),
         )
 
         # Move to appropriate device
         print(f"  Checkpoint restored; moving model to {self.device}")
+        update_startup_state(
+            "moving_model_to_device",
+            f"Checkpoint restored; moving model to {self.device}",
+            inference_device=str(self.device),
+        )
         self.model = self.model.to(self.device)
 
         # If forcing CPU, clear any CUDA memory that might have been allocated
@@ -99,6 +113,11 @@ class NeMoBackend(STTBackend):
 
         # Set to eval mode
         self.model.eval()
+        update_startup_state(
+            "model_ready",
+            f"NeMo model is ready on {self.device}",
+            inference_device=str(self.device),
+        )
 
         print("✓ NeMo model loaded successfully!\n")
 

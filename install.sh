@@ -222,17 +222,10 @@ echo "Installing sherpa-onnx..."
 echo "========================================"
 echo ""
 
-# Install sherpa-onnx with GPU support if needed
-if [ "$INSTALL_GPU" = true ]; then
-    echo "Installing sherpa-onnx with CUDA 12.x support..."
-    pip install sherpa-onnx==1.12.13+cuda12.cudnn9 -f https://k2-fsa.github.io/sherpa/onnx/cuda.html
-    echo ""
-    echo "Installing CUDNN 9 (required for sherpa-onnx GPU support)..."
-    pip install nvidia-cudnn-cu12
-else
-    echo "Installing sherpa-onnx (CPU-only)..."
-    pip install "sherpa-onnx>=1.10.0"
-fi
+# INT8 is a CPU-only fallback; keep its dependencies independent from the
+# selected PyTorch CUDA runtime used by the FP32 NeMo backend.
+echo "Installing sherpa-onnx CPU backend..."
+pip install --upgrade --force-reinstall --no-deps "sherpa-onnx>=1.10.0"
 
 echo ""
 echo "========================================"
@@ -240,20 +233,28 @@ echo "Installing other dependencies..."
 echo "========================================"
 echo ""
 
-# Install other dependencies (sherpa-onnx and CUDNN already installed above)
+# Install other dependencies (sherpa-onnx is already installed above)
 pip install -r requirements.txt
+
+echo ""
+# Verify the exact runtime and prepare the selected model before first startup.
+if [ "$INSTALL_GPU" = true ]; then
+    echo "Verifying GPU runtime compatibility..."
+    python startup_state.py check-runtime --require-cuda
+    echo "Preparing FP32 NeMo model cache..."
+    python model_downloader.py --precision fp32
+else
+    echo "Verifying CPU runtime compatibility..."
+    python startup_state.py check-runtime
+    echo "Preparing INT8 ONNX model files..."
+    python model_downloader.py --precision int8
+fi
 
 echo ""
 echo "========================================"
 echo "Installation Complete!"
 echo "========================================"
 echo ""
-
-# Verify GPU support if installed
-if [ "$INSTALL_GPU" = true ]; then
-    echo "Verifying GPU support..."
-    python -c "import torch; cuda_available = torch.cuda.is_available(); print(f'[+] CUDA available: {cuda_available}'); print(f'[+] CUDA version: {torch.version.cuda if cuda_available else \"N/A\"}'); exit(0 if cuda_available else 1)" && echo "" || (echo "[!] Warning: CUDA not available. GPU may not be properly configured." && echo "")
-fi
 
 echo "To start the server, run:"
 echo "  ./start.sh"

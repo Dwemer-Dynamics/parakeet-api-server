@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib.request import urlretrieve
 from tqdm import tqdm
 import config
+from startup_state import update_startup_state
 
 
 class DownloadProgressBar:
@@ -126,6 +127,62 @@ def download_onnx_models(precision: str) -> Path:
     return model_dir
 
 
+def download_nemo_model() -> Path:
+    """Populate and validate the HuggingFace cache without instantiating the model."""
+    from nemo.collections.asr.models import ASRModel
+
+    update_startup_state("preparing_model", f"Caching {config.NEMO_MODEL_ID}")
+    try:
+        model_path = get_cached_nemo_model_path()
+    except FileNotFoundError:
+        model_path = None
+    if model_path is not None:
+        update_startup_state("model_cached", "Prepared NeMo model cache is available", model_path=str(model_path))
+        print(f"✓ NeMo model cache ready: {model_path}")
+        return model_path
+
+    print(f"\nCaching NeMo model: {config.NEMO_MODEL_ID}")
+    try:
+        model_path = Path(
+            ASRModel.from_pretrained(
+                model_name=config.NEMO_MODEL_ID,
+                return_model_file=True,
+            )
+        )
+    except Exception as exc:
+        update_startup_state("model_prepare_failed", f"{type(exc).__name__}: {exc}")
+        raise
+
+    if not model_path.exists():
+        message = f"NeMo reported a missing cached model path: {model_path}"
+        update_startup_state("model_prepare_failed", message)
+        raise FileNotFoundError(message)
+
+    config.MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    temp_path_file = config.NEMO_MODEL_PATH_FILE.with_name(
+        f".{config.NEMO_MODEL_PATH_FILE.name}.{os.getpid()}.tmp"
+    )
+    temp_path_file.write_text(str(model_path) + "\n", encoding="utf-8")
+    os.replace(temp_path_file, config.NEMO_MODEL_PATH_FILE)
+
+    update_startup_state("model_cached", "NeMo model cache is ready", model_path=str(model_path))
+    print(f"✓ NeMo model cache ready: {model_path}")
+    return model_path
+
+
+def get_cached_nemo_model_path() -> Path:
+    """Return the prepared NeMo checkpoint path, failing if its cache entry is stale."""
+    if not config.NEMO_MODEL_PATH_FILE.is_file():
+        raise FileNotFoundError(
+            f"NeMo model cache manifest not found: {config.NEMO_MODEL_PATH_FILE}"
+        )
+
+    model_path = Path(config.NEMO_MODEL_PATH_FILE.read_text(encoding="utf-8").strip())
+    if not model_path.is_file():
+        raise FileNotFoundError(f"Prepared NeMo model is missing: {model_path}")
+    return model_path
+
+
 def download_models(precision: str) -> Path:
     """
     Download Parakeet models
@@ -134,7 +191,7 @@ def download_models(precision: str) -> Path:
         precision: Precision level ('fp32', 'int8')
 
     Returns:
-        Path to model directory (only for ONNX models)
+        Path to the prepared model directory or checkpoint
     """
     # Validate precision
     if precision not in config.AVAILABLE_PRECISION:
@@ -143,14 +200,9 @@ def download_models(precision: str) -> Path:
             f"Available: {', '.join(config.AVAILABLE_PRECISION)}"
         )
 
-    # Only INT8 ONNX model needs to be downloaded
-    # FP32 uses NeMo and is auto-downloaded from HuggingFace
     if precision == 'int8':
         return download_onnx_models(precision)
-    else:
-        # FP32 uses NeMo, no pre-download needed
-        print(f"{precision.upper()} precision uses NeMo backend - model will be auto-downloaded from HuggingFace on first use")
-        return None
+    return download_nemo_model()
 
 
 if __name__ == "__main__":

@@ -21,7 +21,8 @@ from pydantic import BaseModel
 
 import config
 from backend import STTBackend, create_backend
-from model_downloader import download_models
+from model_downloader import download_models, get_cached_nemo_model_path
+from startup_state import update_startup_state
 
 
 # Global model instance
@@ -62,12 +63,14 @@ async def lifespan(app: FastAPI):
     # Startup: Check if model is initialized
     if stt_model is None:
         print("ERROR: Model not initialized. This should not happen.")
+        update_startup_state("server_failed", "FastAPI started without an initialized model")
         sys.exit(1)
 
-    yield  # Server is running
-
-    # Shutdown: cleanup if needed
-    # (currently no cleanup needed, but this is where it would go)
+    update_startup_state("healthy", "Parakeet API is accepting requests")
+    try:
+        yield  # Server is running
+    finally:
+        update_startup_state("stopped", "Parakeet API stopped")
 
 
 # Initialize FastAPI app
@@ -260,7 +263,7 @@ def initialize_model(
     # Store model info globally
     model_info_global['precision'] = precision
 
-    # Check if ONNX models need to be downloaded (only INT8)
+    # Check whether the selected backend has a prepared model cache.
     model_dir = None
     if precision == 'int8':
         model_dir_name = config.ONNX_MODEL_DIRS.get(precision)
@@ -280,6 +283,17 @@ def initialize_model(
                     print(f"ERROR: Models not found at {model_dir}")
                     print("Run with --download flag to download models automatically")
                     sys.exit(1)
+    else:
+        try:
+            get_cached_nemo_model_path()
+        except FileNotFoundError as exc:
+            if auto_download:
+                print(f"{exc}. Preparing FP32 model cache...")
+                download_models(precision)
+            else:
+                print(f"ERROR: {exc}")
+                print("Run model_downloader.py --precision fp32 to prepare the model cache")
+                sys.exit(1)
 
     # Initialize backend
     print(f"\nInitializing {config.MODEL_DESCRIPTION} ({precision.upper()})...")
@@ -381,26 +395,42 @@ Examples:
     print("="*70)
     print()
 
-    # Initialize model
-    initialize_model(
+    update_startup_state(
+        "process_started",
+        "Parakeet server process started",
         precision=args.precision,
-        num_threads=args.threads,
-        auto_download=not args.no_download,
-        force_cpu=args.cpu
+        force_cpu=args.cpu,
+        port=args.port,
     )
+
+    try:
+        initialize_model(
+            precision=args.precision,
+            num_threads=args.threads,
+            auto_download=not args.no_download,
+            force_cpu=args.cpu
+        )
+    except BaseException as exc:
+        update_startup_state("model_load_failed", f"{type(exc).__name__}: {exc}")
+        raise
 
     # Start server
     print(f"Starting server at http://{args.host}:{args.port}")
     print(f"OpenAI-compatible endpoint: http://{args.host}:{args.port}/v1/audio/transcriptions")
     print(f"API docs: http://{args.host}:{args.port}/docs")
     print()
+    update_startup_state("starting_api", f"Starting API on {args.host}:{args.port}")
 
-    uvicorn.run(
-        app,
-        host=args.host,
-        port=args.port,
-        log_level="info",
-    )
+    try:
+        uvicorn.run(
+            app,
+            host=args.host,
+            port=args.port,
+            log_level="info",
+        )
+    except BaseException as exc:
+        update_startup_state("server_failed", f"{type(exc).__name__}: {exc}")
+        raise
 
 
 if __name__ == "__main__":
