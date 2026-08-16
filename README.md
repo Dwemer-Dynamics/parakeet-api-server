@@ -8,7 +8,7 @@ A high-performance Speech-to-Text API server using NVIDIA's Parakeet TDT 0.6B v3
 
 - **Flexible Precision**: FP32 (Best quality, GPU/CPU) or INT8 (Slightly worse quality, CPU-only)
 - **Easy Setup**: Clone and run with a single command
-- **Prepared Models**: Installation and supervised startup validate the model cache before loading NeMo
+- **Prepared Models**: NeMo downloads the checkpoint before constructing the model
 - **OpenAI Compatible**: Drop-in replacement for OpenAI's Whisper API
 - **Multilingual**: Supports 25 European languages (auto-detected)
 
@@ -208,32 +208,28 @@ Tested on RTX 3060 and i5-11600K on a 2.4hr dataset:
 
 1. Check NVIDIA drivers: `nvidia-smi`
 2. Activate the virtual environment: `source venv/bin/activate`
-3. Run the full compatibility probe: `python startup_state.py check-runtime --require-cuda`
+3. Verify PyTorch CUDA: `python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"`
 4. Reinstall PyTorch with CUDA support (see GPU Setup above)
 
-The compatibility probe records the NVIDIA driver, GPU compute capability,
-PyTorch and CUDA builds, cuDNN version, installed NVIDIA package families, and
-the result of a real CUDA tensor operation. If both CUDA 12 and CUDA 13 packages
-are reported, reinstall into a clean virtual environment with one PyTorch wheel
-channel instead of trying to repair the mixed environment in place.
+Use one PyTorch wheel channel per virtual environment. If an existing environment
+contains mixed CUDA package families, reinstall it cleanly instead of trying to
+remove individual CUDA libraries.
 
 ### Server Never Becomes Healthy
 
-Supervised startup uses separate deadlines for model preparation and NeMo model
-restore. It retries a failed restore once, but it does not silently switch a GPU
-installation to CPU.
+Supervised startup uses a bounded health deadline and retries once. GPU mode also
+checks a real CUDA tensor operation before loading NeMo; it does not silently
+switch a broken GPU installation to CPU.
 
 Inspect these files after a failure:
 
 ```bash
-python startup_state.py show
 tail -n 200 log.txt
 tail -n 200 log.previous.txt
 ```
 
-`startup_state.json` identifies the last completed startup phase. `log.txt`
-includes a failure snapshot with the process state, memory usage, GPU/driver
-details, and available kernel out-of-memory or NVIDIA Xid errors.
+`log.txt` includes the PyTorch/CUDA versions and a failure snapshot with process,
+memory, GPU/driver, and available kernel out-of-memory or NVIDIA Xid evidence.
 
 ### Out of Memory
 
@@ -275,7 +271,6 @@ parakeet-api/
 ├── inference_nemo.py      # NeMo backend (FP32)
 ├── inference_onnx.py      # ONNX backend (INT8)
 ├── model_downloader.py    # Model cache preparation
-├── startup_state.py       # Startup phases and runtime diagnostics
 ├── benchmark.py           # WER & performance testing
 ├── config.py              # Configuration
 ├── requirements.txt       # Dependencies

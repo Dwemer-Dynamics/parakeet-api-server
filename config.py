@@ -31,7 +31,6 @@ ONNX_MODEL_DIRS = {
 
 # NeMo model ID
 NEMO_MODEL_ID = 'nvidia/parakeet-tdt-0.6b-v3'
-NEMO_MODEL_PATH_FILE = MODELS_DIR / 'nemo_model_path.txt'
 
 # API Configuration
 API_HOST = os.getenv("API_HOST", "0.0.0.0")

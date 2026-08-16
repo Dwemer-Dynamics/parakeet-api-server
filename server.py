@@ -4,6 +4,7 @@ FastAPI-based server with OpenAI-compatible endpoints
 """
 import argparse
 import io
+import os
 import sys
 import tempfile
 import time
@@ -21,8 +22,7 @@ from pydantic import BaseModel
 
 import config
 from backend import STTBackend, create_backend
-from model_downloader import download_models, get_cached_nemo_model_path
-from startup_state import update_startup_state
+from model_downloader import download_models
 
 
 # Global model instance
@@ -63,14 +63,12 @@ async def lifespan(app: FastAPI):
     # Startup: Check if model is initialized
     if stt_model is None:
         print("ERROR: Model not initialized. This should not happen.")
-        update_startup_state("server_failed", "FastAPI started without an initialized model")
         sys.exit(1)
 
-    update_startup_state("healthy", "Parakeet API is accepting requests")
-    try:
-        yield  # Server is running
-    finally:
-        update_startup_state("stopped", "Parakeet API stopped")
+    yield  # Server is running
+
+    # Shutdown: cleanup if needed
+    # (currently no cleanup needed, but this is where it would go)
 
 
 # Initialize FastAPI app
@@ -283,17 +281,8 @@ def initialize_model(
                     print(f"ERROR: Models not found at {model_dir}")
                     print("Run with --download flag to download models automatically")
                     sys.exit(1)
-    else:
-        try:
-            get_cached_nemo_model_path()
-        except FileNotFoundError as exc:
-            if auto_download:
-                print(f"{exc}. Preparing FP32 model cache...")
-                download_models(precision)
-            else:
-                print(f"ERROR: {exc}")
-                print("Run model_downloader.py --precision fp32 to prepare the model cache")
-                sys.exit(1)
+    elif auto_download:
+        os.environ["PARAKEET_NEMO_MODEL_PATH"] = str(download_models(precision))
 
     # Initialize backend
     print(f"\nInitializing {config.MODEL_DESCRIPTION} ({precision.upper()})...")
@@ -395,42 +384,26 @@ Examples:
     print("="*70)
     print()
 
-    update_startup_state(
-        "process_started",
-        "Parakeet server process started",
+    # Initialize model
+    initialize_model(
         precision=args.precision,
-        force_cpu=args.cpu,
-        port=args.port,
+        num_threads=args.threads,
+        auto_download=not args.no_download,
+        force_cpu=args.cpu
     )
-
-    try:
-        initialize_model(
-            precision=args.precision,
-            num_threads=args.threads,
-            auto_download=not args.no_download,
-            force_cpu=args.cpu
-        )
-    except BaseException as exc:
-        update_startup_state("model_load_failed", f"{type(exc).__name__}: {exc}")
-        raise
 
     # Start server
     print(f"Starting server at http://{args.host}:{args.port}")
     print(f"OpenAI-compatible endpoint: http://{args.host}:{args.port}/v1/audio/transcriptions")
     print(f"API docs: http://{args.host}:{args.port}/docs")
     print()
-    update_startup_state("starting_api", f"Starting API on {args.host}:{args.port}")
 
-    try:
-        uvicorn.run(
-            app,
-            host=args.host,
-            port=args.port,
-            log_level="info",
-        )
-    except BaseException as exc:
-        update_startup_state("server_failed", f"{type(exc).__name__}: {exc}")
-        raise
+    uvicorn.run(
+        app,
+        host=args.host,
+        port=args.port,
+        log_level="info",
+    )
 
 
 if __name__ == "__main__":

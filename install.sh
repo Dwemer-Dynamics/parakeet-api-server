@@ -240,12 +240,20 @@ echo ""
 # Verify the exact runtime and prepare the selected model before first startup.
 if [ "$INSTALL_GPU" = true ]; then
     echo "Verifying GPU runtime compatibility..."
-    python startup_state.py check-runtime --require-cuda
+    python - <<'PY'
+import torch
+
+print(f"PyTorch {torch.__version__}; CUDA build {torch.version.cuda}; available {torch.cuda.is_available()}")
+if not torch.cuda.is_available():
+    raise SystemExit("ERROR: PyTorch CUDA is unavailable")
+probe = torch.ones(1, device="cuda")
+probe.add_(1)
+torch.cuda.synchronize()
+print("CUDA tensor probe passed")
+PY
     echo "Preparing FP32 NeMo model cache..."
     python model_downloader.py --precision fp32
 else
-    echo "Verifying CPU runtime compatibility..."
-    python startup_state.py check-runtime
     echo "Preparing INT8 ONNX model files..."
     python model_downloader.py --precision int8
 fi

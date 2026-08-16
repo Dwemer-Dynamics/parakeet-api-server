@@ -48,7 +48,6 @@ models/
 
 # Logs
 *.log
-startup_state.json
 
 # OS
 .DS_Store
