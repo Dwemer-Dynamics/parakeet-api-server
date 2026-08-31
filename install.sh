@@ -3,6 +3,8 @@
 # Parakeet STT API Server - Installation Script (Linux/macOS)
 
 set -e
+export PIP_NO_CACHE_DIR=1
+export PIP_DISABLE_PIP_VERSION_CHECK=1
 
 echo "========================================"
 echo "Parakeet STT API Server - Installation"
@@ -198,7 +200,7 @@ source venv/bin/activate
 
 # Upgrade pip
 echo "Upgrading pip..."
-pip install --upgrade pip > /dev/null 2>&1
+python -m pip install --no-cache-dir --upgrade pip > /dev/null 2>&1
 
 echo ""
 echo "========================================"
@@ -210,10 +212,10 @@ echo ""
 if [ "$INSTALL_GPU" = true ]; then
     echo "Installing PyTorch with $GPU_TORCH_LABEL support..."
     echo "  $GPU_TORCH_INDEX_URL"
-    pip install --upgrade --no-cache-dir torch torchvision torchaudio --index-url "$GPU_TORCH_INDEX_URL"
+    python -m pip install --upgrade --no-cache-dir torch torchvision torchaudio --index-url "$GPU_TORCH_INDEX_URL"
 else
     echo "Installing PyTorch (CPU-only)..."
-    pip install --upgrade --no-cache-dir torch torchvision torchaudio --index-url "$CPU_TORCH_INDEX_URL"
+    python -m pip install --upgrade --no-cache-dir torch torchvision torchaudio --index-url "$CPU_TORCH_INDEX_URL"
 fi
 
 echo ""
@@ -225,7 +227,7 @@ echo ""
 # INT8 is a CPU-only fallback; keep its dependencies independent from the
 # selected PyTorch CUDA runtime used by the FP32 NeMo backend.
 echo "Installing sherpa-onnx CPU backend..."
-pip install --upgrade --force-reinstall --no-deps "sherpa-onnx>=1.10.0"
+python -m pip install --upgrade --force-reinstall --no-cache-dir --no-deps "sherpa-onnx>=1.10.0"
 
 echo ""
 echo "========================================"
@@ -234,7 +236,7 @@ echo "========================================"
 echo ""
 
 # Install other dependencies (sherpa-onnx is already installed above)
-pip install -r requirements.txt
+python -m pip install --no-cache-dir -r requirements.txt
 
 echo ""
 # Verify the exact runtime and prepare the selected model before first startup.
